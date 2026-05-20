@@ -12,13 +12,16 @@ export const REPOSITORIES = [
   "non-profit",
 ];
 
+export const OTHER_REPOSITORY = "not-listed";
+export const OTHER_REPOSITORY_LABEL = "Not listed / other";
+
 export const REQUEST_TYPES = [
   { value: "problem", label: "Problem" },
   { value: "feature-request", label: "Feature request" },
 ];
 
 export function isKnownRepository(value) {
-  return REPOSITORIES.includes(value);
+  return REPOSITORIES.includes(value) || value === OTHER_REPOSITORY;
 }
 
 export function isKnownRequestType(value) {
@@ -27,6 +30,10 @@ export function isKnownRequestType(value) {
 
 export function issueLabelForRepo(repo) {
   return `repo-${repo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
+
+export function displayRepositoryLabel(repo) {
+  return repo === OTHER_REPOSITORY ? OTHER_REPOSITORY_LABEL : repo;
 }
 
 export function issueLabelForType(type) {

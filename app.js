@@ -1,4 +1,4 @@
-import { REPOSITORIES, REQUEST_TYPES } from "./repos.js";
+import { OTHER_REPOSITORY, REPOSITORIES, REQUEST_TYPES } from "./repos.js";
 
 const form = document.getElementById("intake-form");
 const statusEl = document.getElementById("status");
@@ -28,6 +28,13 @@ for (const repo of REPOSITORIES) {
   const option = document.createElement("option");
   option.value = repo;
   option.textContent = repo;
+  repoEl.append(option);
+}
+
+{
+  const option = document.createElement("option");
+  option.value = OTHER_REPOSITORY;
+  option.textContent = "Not listed / other";
   repoEl.append(option);
 }
 

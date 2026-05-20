@@ -5,6 +5,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  displayRepositoryLabel,
   isKnownRequestType,
   isKnownRepository,
   issueLabelForRepo,
@@ -155,7 +156,7 @@ function renderIssueBody(payload) {
     payload.requestType === "problem" ? "Problem" : "Feature request",
     ``,
     `## Affected repository`,
-    payload.affectedRepo,
+    displayRepositoryLabel(payload.affectedRepo),
     ``,
     `## Reporter`,
     `- Name: ${payload.reporterName}`,

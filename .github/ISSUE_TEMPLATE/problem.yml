@@ -18,6 +18,7 @@ body:
         - herdlist
         - layers
         - non-profit
+        - Not listed / other
     validations:
       required: true
   - type: input
