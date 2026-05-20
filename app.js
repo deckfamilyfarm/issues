@@ -10,6 +10,10 @@ const openIssuesLinkEl = document.getElementById("open-issues-link");
 const requestTypeEl = document.getElementById("requestType");
 const repoEl = document.getElementById("affectedRepo");
 const apiHintEl = document.getElementById("api-hint");
+const humanCheckQuestionEl = document.getElementById("human-check-question");
+const humanCheckIdEl = document.getElementById("humanCheckId");
+const humanCheckEl = document.getElementById("humanCheck");
+const submitButtonEl = form.querySelector('button[type="submit"]');
 const apiUrl =
   document.querySelector('meta[name="intake-api-url"]')?.content || "/api/issues";
 const featureRequestsUrl =
@@ -59,6 +63,8 @@ function formDataToPayload(formData) {
     desiredOutcome: String(formData.get("desiredOutcome") || ""),
     why: String(formData.get("why") || ""),
     attachments: String(formData.get("attachments") || ""),
+    humanCheckId: String(formData.get("humanCheckId") || ""),
+    humanCheck: String(formData.get("humanCheck") || ""),
   };
 }
 
@@ -99,6 +105,38 @@ if (openIssuesLinkEl) {
   openIssuesLinkEl.href = openIssuesUrl;
 }
 
+async function loadHumanCheck() {
+  if (!humanCheckQuestionEl || !humanCheckIdEl || !humanCheckEl) {
+    return;
+  }
+
+  humanCheckQuestionEl.textContent = "Loading...";
+  humanCheckIdEl.value = "";
+  humanCheckEl.value = "";
+  if (submitButtonEl) {
+    submitButtonEl.disabled = true;
+  }
+
+  try {
+    const response = await fetch("/api/human-check", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const body = await response.json();
+    humanCheckQuestionEl.textContent = body.question || "Human check unavailable";
+    humanCheckIdEl.value = body.id || "";
+    if (submitButtonEl) {
+      submitButtonEl.disabled = !body.id;
+    }
+  } catch {
+    humanCheckQuestionEl.textContent = "Question unavailable";
+    if (submitButtonEl) {
+      submitButtonEl.disabled = true;
+    }
+  }
+}
+
 async function loadApiStatus() {
   try {
     const response = await fetch("/api/config", { cache: "no-store" });
@@ -121,6 +159,7 @@ async function loadApiStatus() {
 }
 
 loadApiStatus();
+loadHumanCheck();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -152,6 +191,7 @@ form.addEventListener("submit", async (event) => {
     form.reset();
     setSectionVisibility(requestTypeEl.value);
     resetRepositorySelection();
+    loadHumanCheck();
 
     if (body.dryRun || body.mode === "dry-run") {
       statusEl.textContent =
@@ -178,6 +218,9 @@ form.addEventListener("submit", async (event) => {
 
     statusEl.textContent =
       error instanceof Error ? error.message : "Send failed.";
+    if (error instanceof Error && error.message.includes("Human check")) {
+      loadHumanCheck();
+    }
     if (submissionResultEl) {
       submissionResultEl.classList.add("hidden");
     }

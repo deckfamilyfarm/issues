@@ -193,7 +193,7 @@ textarea:focus {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .actions {
@@ -202,6 +202,33 @@ textarea:focus {
   align-items: center;
   gap: 12px;
   padding-top: 4px;
+}
+
+.human-check {
+  display: grid;
+  gap: 8px;
+  min-width: min(100%, 280px);
+}
+
+.human-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.human-check-question {
+  min-width: 180px;
+  max-width: min(58vw, 360px);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  font-weight: 700;
+  text-align: left;
+}
+
+.human-check input {
+  max-width: 120px;
 }
 
 button {
@@ -217,6 +244,11 @@ button {
 
 button:hover {
   background: var(--accent-dark);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 button:active {

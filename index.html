@@ -175,6 +175,21 @@
           </label>
 
           <div class="actions">
+            <label class="human-check">
+              <span>Human check:</span>
+              <div class="human-check-row">
+                <span id="human-check-question" class="human-check-question">Loading...</span>
+                <input name="humanCheckId" id="humanCheckId" type="hidden" />
+                <input
+                  name="humanCheck"
+                  id="humanCheck"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="answer"
+                  required
+                />
+              </div>
+            </label>
             <button type="submit">Send report</button>
             <p id="status" class="status" role="status" aria-live="polite"></p>
           </div>

@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomInt, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
@@ -53,6 +54,8 @@ const host = process.env.HOST || "127.0.0.1";
 const issueRepo = process.env.ISSUE_REPO || process.env.GITHUB_REPOSITORY || "deckfamilyfarm/issues";
 const githubToken = process.env.GITHUB_TOKEN || "";
 const dryRun = process.env.DRY_RUN === "1";
+const humanCheckTtlMs = 10 * 60 * 1000;
+const humanChallenges = new Map();
 
 if (dryRun) {
   process.stdout.write("Issue intake running in DRY_RUN mode; no GitHub issue will be created.\n");
@@ -141,6 +144,77 @@ function requireField(value, name) {
     throw new Error(`${name} is required.`);
   }
   return trimmed;
+}
+
+function normalizeHumanAnswer(value) {
+  return normalizeText(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function cleanupHumanChallenges(now = Date.now()) {
+  for (const [id, challenge] of humanChallenges) {
+    if (challenge.expiresAt <= now) {
+      humanChallenges.delete(id);
+    }
+  }
+}
+
+function createHumanChallenge() {
+  cleanupHumanChallenges();
+
+  const mathA = randomInt(2, 10);
+  const mathB = randomInt(2, 10);
+  const biggerA = randomInt(3, 10);
+  const biggerB = randomInt(11, 19);
+  const questions = [
+    {
+      question: `What is ${mathA} plus ${mathB}?`,
+      answers: [String(mathA + mathB)],
+    },
+    {
+      question: `Type the word farm.`,
+      answers: ["farm"],
+    },
+    {
+      question: `Which is bigger: ${biggerA} or ${biggerB}?`,
+      answers: [String(biggerB)],
+    },
+    {
+      question: `What is the first word in Deck Family Farm?`,
+      answers: ["deck"],
+    },
+    {
+      question: `Type the last word in Deck Family Farm.`,
+      answers: ["farm"],
+    },
+  ];
+  const selected = questions[randomInt(questions.length)];
+  const id = randomUUID();
+
+  humanChallenges.set(id, {
+    answers: selected.answers.map(normalizeHumanAnswer),
+    expiresAt: Date.now() + humanCheckTtlMs,
+  });
+
+  return {
+    id,
+    question: selected.question,
+    expiresInSeconds: Math.floor(humanCheckTtlMs / 1000),
+  };
+}
+
+function validateHumanCheck(id, value) {
+  cleanupHumanChallenges();
+
+  const challenge = humanChallenges.get(normalizeText(id));
+  if (!challenge) {
+    throw new Error("Human check expired. Please answer the new question.");
+  }
+
+  humanChallenges.delete(normalizeText(id));
+
+  if (!challenge.answers.includes(normalizeHumanAnswer(value))) {
+    throw new Error("Human check failed.");
+  }
 }
 
 function escapeMd(value) {
@@ -279,6 +353,8 @@ async function handleIssueSubmit(req, res) {
     const contact = requireField(payload.contact, "contact");
     const summary = requireField(payload.summary, "summary");
     const details = requireField(payload.details, "details");
+    const humanCheckId = requireField(payload.humanCheckId, "humanCheckId");
+    const humanCheck = requireField(payload.humanCheck, "humanCheck");
 
     if (!isKnownRequestType(requestType)) {
       throw new Error("requestType must be problem or feature-request.");
@@ -287,6 +363,8 @@ async function handleIssueSubmit(req, res) {
     if (!isKnownRepository(affectedRepo)) {
       throw new Error("affectedRepo is not one of the allowed repositories.");
     }
+
+    validateHumanCheck(humanCheckId, humanCheck);
 
     const normalized = {
       requestType,
@@ -360,6 +438,14 @@ const server = http.createServer((req, res) => {
       issueRepo,
       hasGitHubToken: Boolean(githubToken),
       apiUrl: "/api/issues",
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/human-check") {
+    sendJson(res, 200, {
+      ok: true,
+      ...createHumanChallenge(),
     });
     return;
   }
