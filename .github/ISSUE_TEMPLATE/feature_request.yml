@@ -1,0 +1,67 @@
+name: Feature request
+description: Request a change in how the application works
+title: "[Feature request]: "
+body:
+  - type: dropdown
+    id: affected_repo
+    attributes:
+      label: Choose repository
+      options:
+        - timesheets
+        - accounting-reports
+        - backups
+        - csa-store
+        - dashboards
+        - dff-workflow-builder
+        - farm-brand-tests
+        - ffcsa_scripts
+        - herdlist
+        - layers
+        - non-profit
+    validations:
+      required: true
+  - type: input
+    id: reporter_name
+    attributes:
+      label: Your name
+      placeholder: Jane Doe
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: Best contact
+      placeholder: email or phone
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Short summary
+      placeholder: One sentence that explains the request.
+    validations:
+      required: true
+  - type: textarea
+    id: desired_outcome
+    attributes:
+      label: What should the application do instead?
+      placeholder: Describe the change you want.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it matter?
+      placeholder: What problem does this solve?
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      placeholder: Anything else that helps us understand the request.
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments or links
+      placeholder: Screenshots, examples, or related links

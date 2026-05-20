@@ -1,0 +1,12 @@
+{
+  "name": "issues-intake",
+  "private": true,
+  "engines": {
+    "node": "20.11.1"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs"
+  }
+}

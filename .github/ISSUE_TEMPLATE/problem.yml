@@ -1,0 +1,79 @@
+name: Problem report
+description: Report a broken behavior or unexpected result
+title: "[Problem]: "
+body:
+  - type: dropdown
+    id: affected_repo
+    attributes:
+      label: Choose repository
+      options:
+        - timesheets
+        - accounting-reports
+        - backups
+        - csa-store
+        - dashboards
+        - dff-workflow-builder
+        - farm-brand-tests
+        - ffcsa_scripts
+        - herdlist
+        - layers
+        - non-profit
+    validations:
+      required: true
+  - type: input
+    id: reporter_name
+    attributes:
+      label: Your name
+      placeholder: Jane Doe
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: Best contact
+      placeholder: email or phone
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Short summary
+      placeholder: One sentence that explains the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      placeholder: What happened, what you expected, and anything else that helps.
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - computer
+        - phone
+        - tablet
+        - other
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome, Safari, Firefox, etc.
+  - type: input
+    id: happened_at
+    attributes:
+      label: When it happened
+      placeholder: Approximate time and date
+  - type: input
+    id: error_message
+    attributes:
+      label: Exact message or error text
+      placeholder: Paste the exact text if you have it
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments or links
+      placeholder: Screenshots, links, or filenames

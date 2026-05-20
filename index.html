@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="intake-api-url"
+      content="/api/issues"
+    />
+    <title>Issue Intake</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Deck Family Farm Public Issue Intake</p>
+        <h1>Tell us what broke or what should change.</h1>
+        <div class="cta-row">
+          <a
+            id="feature-requests-link"
+            class="button-link"
+            href="https://github.com/deckfamilyfarm/issues/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-request"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Review feature requests
+          </a>
+          <a
+            id="open-issues-link"
+            class="button-link"
+            href="https://github.com/deckfamilyfarm/issues/issues?q=is%3Aissue+is%3Aopen"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View all open issues
+          </a>
+        </div>
+        <p id="api-hint" class="api-hint" aria-live="polite"></p>
+      </section>
+
+      <section class="panel">
+        <form id="intake-form" class="form">
+          <div class="grid two">
+            <label>
+              <span>What is this?</span>
+              <select name="requestType" id="requestType" required>
+                <option value="problem">Problem</option>
+                <option value="feature-request">Feature request</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Choose repository:</span>
+              <select name="affectedRepo" id="affectedRepo" required>
+                <option value="" selected disabled>Choose repository:</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              <span>Your name</span>
+              <input
+                name="reporterName"
+                type="text"
+                autocomplete="name"
+                placeholder="Jane Doe"
+                required
+              />
+            </label>
+
+            <label>
+              <span>Best contact</span>
+              <input
+                name="contact"
+                type="text"
+                autocomplete="email"
+                placeholder="email or phone"
+                required
+              />
+            </label>
+          </div>
+
+          <label>
+            <span>Short summary</span>
+            <input
+              name="summary"
+              type="text"
+              maxlength="120"
+              placeholder="A short sentence that explains the issue"
+              required
+            />
+          </label>
+
+          <label>
+            <span>Details</span>
+            <textarea
+              name="details"
+              rows="6"
+              placeholder="What happened, what you expected, and anything else that helps us understand it."
+              required
+            ></textarea>
+          </label>
+
+          <section class="stack" data-section="problem">
+            <h2>If this is a problem</h2>
+            <div class="grid two">
+              <label>
+                <span>Device</span>
+                <select name="deviceType">
+                  <option value="">Choose one</option>
+                  <option value="computer">Computer</option>
+                  <option value="phone">Phone</option>
+                  <option value="tablet">Tablet</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Browser</span>
+                <input
+                  name="browser"
+                  type="text"
+                  placeholder="Chrome, Safari, Firefox, etc."
+                />
+              </label>
+            </div>
+
+            <div class="grid two">
+              <label>
+                <span>When it happened</span>
+                <input name="happenedAt" type="datetime-local" />
+              </label>
+
+              <label>
+                <span>Exact message or error text</span>
+                <input
+                  name="errorMessage"
+                  type="text"
+                  placeholder="Paste the exact text if you have it"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section class="stack hidden" data-section="feature-request">
+            <h2>If this is a feature request</h2>
+            <label>
+              <span>What should the application do instead?</span>
+              <textarea
+                name="desiredOutcome"
+                rows="4"
+                placeholder="Describe the change you want."
+              ></textarea>
+            </label>
+
+            <label>
+              <span>Why does it matter?</span>
+              <textarea
+                name="why"
+                rows="3"
+                placeholder="What is the benefit or problem this solves?"
+              ></textarea>
+            </label>
+          </section>
+
+          <label>
+            <span>Attachments or links</span>
+            <textarea
+              name="attachments"
+              rows="3"
+              placeholder="Optional screenshots, links, or filenames."
+            ></textarea>
+          </label>
+
+          <div class="actions">
+            <button type="submit">Send report</button>
+            <p id="status" class="status" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+        <div id="submission-result" class="submission-result hidden" aria-live="polite">
+          <p id="submission-message" class="submission-message"></p>
+          <a
+            id="submission-link"
+            class="button-link"
+            href="#"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View the request you just submitted
+          </a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
