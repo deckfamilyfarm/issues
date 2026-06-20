@@ -1,7 +1,7 @@
 import http from "node:http";
-import { randomInt, randomUUID } from "node:crypto";
+import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,9 +53,27 @@ const port = Number(process.env.PORT || 3021);
 const host = process.env.HOST || "127.0.0.1";
 const issueRepo = process.env.ISSUE_REPO || process.env.GITHUB_REPOSITORY || "deckfamilyfarm/issues";
 const githubToken = process.env.GITHUB_TOKEN || "";
+const githubWebhookSecret = process.env.GITHUB_WEBHOOK_SECRET || "";
+const postmarkServerToken = process.env.POSTMARK_SERVER_TOKEN || "";
+const postmarkFromEmail = process.env.POSTMARK_FROM_EMAIL || "";
+const postmarkReplyToEmail = process.env.POSTMARK_REPLY_TO_EMAIL || "";
+const postmarkMessageStream = process.env.POSTMARK_MESSAGE_STREAM || "";
+const postmarkWebhookSecret = process.env.POSTMARK_WEBHOOK_SECRET || "";
+const dataDir = resolve(here, process.env.DATA_DIR || ".data");
+const reporterContactsPath = resolve(dataDir, "reporter-contacts.json");
 const dryRun = process.env.DRY_RUN === "1";
 const humanCheckTtlMs = 10 * 60 * 1000;
 const humanChallenges = new Map();
+let contactStoreQueue = Promise.resolve();
+
+const emailAllowedAuthorAssociations = new Set(
+  (process.env.EMAIL_ALLOWED_AUTHOR_ASSOCIATIONS || "OWNER,MEMBER,COLLABORATOR")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean),
+);
+const reporterReplyMarker = "<!-- email-bridge:reporter-reply -->";
+const internalCommentMarker = "<!-- email-bridge:internal -->";
 
 if (dryRun) {
   process.stdout.write("Issue intake running in DRY_RUN mode; no GitHub issue will be created.\n");
@@ -87,7 +105,7 @@ function sendJson(res, statusCode, payload) {
   });
 }
 
-function parseJson(req, limit = 64_000) {
+function parseBody(req, limit = 64_000) {
   return new Promise((resolvePromise, rejectPromise) => {
     let size = 0;
     const chunks = [];
@@ -103,16 +121,16 @@ function parseJson(req, limit = 64_000) {
     });
 
     req.on("end", () => {
-      try {
-        const text = Buffer.concat(chunks).toString("utf8");
-        resolvePromise(text ? JSON.parse(text) : {});
-      } catch (error) {
-        rejectPromise(error);
-      }
+      resolvePromise(Buffer.concat(chunks).toString("utf8"));
     });
 
     req.on("error", rejectPromise);
   });
+}
+
+async function parseJson(req, limit = 64_000) {
+  const text = await parseBody(req, limit);
+  return text ? JSON.parse(text) : {};
 }
 
 async function serveStatic(pathname, res) {
@@ -138,12 +156,114 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
+function normalizeEmail(value) {
+  const email = normalizeText(value).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("contact must be a valid email address.");
+  }
+  return email;
+}
+
 function requireField(value, name) {
   const trimmed = normalizeText(value);
   if (!trimmed) {
     throw new Error(`${name} is required.`);
   }
   return trimmed;
+}
+
+function timingSafeStringEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""), "utf8");
+  const rightBuffer = Buffer.from(String(right || ""), "utf8");
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function extractEmailAddress(value) {
+  const text = normalizeText(value);
+  const match = text.match(/<([^<>@\s]+@[^<>@\s]+\.[^<>@\s]+)>/);
+  if (match) {
+    return match[1].toLowerCase();
+  }
+
+  const bare = text.match(/[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/);
+  return bare ? bare[0].toLowerCase() : "";
+}
+
+function stripHtml(value) {
+  return String(value || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+function truncateText(value, maxLength = 60_000) {
+  const text = normalizeText(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength)}\n\n[Message truncated.]`;
+}
+
+function truncateLine(value, maxLength = 140) {
+  const text = normalizeText(value).replace(/\s+/g, " ");
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+async function readReporterContacts() {
+  try {
+    const text = await readFile(reporterContactsPath, "utf8");
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+}
+
+async function writeReporterContacts(contacts) {
+  await mkdir(dataDir, { recursive: true });
+  const tempPath = `${reporterContactsPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(contacts, null, 2)}\n`, "utf8");
+  await rename(tempPath, reporterContactsPath);
+}
+
+async function updateReporterContacts(mutator) {
+  const next = contactStoreQueue.then(async () => {
+    const contacts = await readReporterContacts();
+    const result = await mutator(contacts);
+    await writeReporterContacts(contacts);
+    return result;
+  });
+
+  contactStoreQueue = next.catch(() => {});
+  return next;
+}
+
+async function getReporterContact(issueNumber) {
+  await contactStoreQueue.catch(() => {});
+  const contacts = await readReporterContacts();
+  return contacts[String(issueNumber)] || null;
 }
 
 function normalizeHumanAnswer(value) {
@@ -234,7 +354,7 @@ function renderIssueBody(payload) {
     ``,
     `## Reporter`,
     `- Name: ${payload.reporterName}`,
-    `- Contact: ${payload.contact}`,
+    `- Contact: email on file`,
   ];
 
   if (payload.requestType === "problem") {
@@ -337,6 +457,333 @@ async function createIssue(payload) {
   return JSON.parse(text);
 }
 
+function headerValue(req, name) {
+  const value = req.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value || "";
+}
+
+function verifyGitHubSignature(req, rawBody) {
+  if (!githubWebhookSecret) {
+    throw new Error("GITHUB_WEBHOOK_SECRET is required for the GitHub webhook.");
+  }
+
+  const signature = headerValue(req, "x-hub-signature-256");
+  if (!signature.startsWith("sha256=")) {
+    return false;
+  }
+
+  const expected = `sha256=${createHmac("sha256", githubWebhookSecret)
+    .update(rawBody)
+    .digest("hex")}`;
+
+  return timingSafeStringEqual(signature, expected);
+}
+
+function verifyPostmarkWebhook(req, url) {
+  if (!postmarkWebhookSecret) {
+    throw new Error("POSTMARK_WEBHOOK_SECRET is required for the Postmark webhook.");
+  }
+
+  const token =
+    url.searchParams.get("token") ||
+    headerValue(req, "x-postmark-webhook-secret") ||
+    headerValue(req, "x-webhook-secret");
+
+  return timingSafeStringEqual(token, postmarkWebhookSecret);
+}
+
+function assertPostmarkOutboundConfigured() {
+  const missing = [];
+  if (!postmarkServerToken) {
+    missing.push("POSTMARK_SERVER_TOKEN");
+  }
+  if (!postmarkFromEmail) {
+    missing.push("POSTMARK_FROM_EMAIL");
+  }
+  if (!postmarkReplyToEmail) {
+    missing.push("POSTMARK_REPLY_TO_EMAIL");
+  }
+
+  if (missing.length) {
+    throw new Error(`Postmark outbound email is not configured: ${missing.join(", ")}.`);
+  }
+}
+
+function plusAddress(address, hash) {
+  const email = extractEmailAddress(address);
+  const atIndex = email.lastIndexOf("@");
+  if (atIndex === -1) {
+    throw new Error("POSTMARK_REPLY_TO_EMAIL must be a valid email address.");
+  }
+
+  const local = email.slice(0, atIndex).split("+")[0];
+  const domain = email.slice(atIndex + 1);
+  return `${local}+${hash}@${domain}`;
+}
+
+function postmarkIssueReplyTo(issueNumber) {
+  return plusAddress(postmarkReplyToEmail, String(issueNumber));
+}
+
+async function sendPostmarkEmail(message) {
+  assertPostmarkOutboundConfigured();
+
+  const payload = {
+    ...message,
+    MessageStream: postmarkMessageStream || undefined,
+  };
+
+  const response = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-postmark-server-token": postmarkServerToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Postmark send failed: ${response.status} ${text}`);
+  }
+
+  return text ? JSON.parse(text) : {};
+}
+
+function renderIssueCommentEmail(issue, comment) {
+  const author = comment.user?.login || "A maintainer";
+  const body = truncateText(
+    normalizeText(comment.body)
+      .replace(reporterReplyMarker, "")
+      .replace(internalCommentMarker, ""),
+  );
+
+  return [
+    `${author} replied to your request:`,
+    ``,
+    body,
+    ``,
+    `Issue: ${issue.html_url}`,
+    ``,
+    `Reply to this email to add a note to the issue.`,
+  ].join("\n");
+}
+
+async function emailReporterForIssueComment(issue, comment, contact) {
+  const subject = `Re: ${truncateLine(issue.title || `Issue #${issue.number}`)}`;
+
+  return sendPostmarkEmail({
+    From: postmarkFromEmail,
+    To: contact.email,
+    ReplyTo: postmarkIssueReplyTo(issue.number),
+    Subject: subject,
+    TextBody: renderIssueCommentEmail(issue, comment),
+    Tag: "github-issue-reply",
+    Headers: [
+      {
+        Name: "X-GitHub-Issue",
+        Value: String(issue.number),
+      },
+    ],
+  });
+}
+
+async function createIssueComment(issueNumber, body) {
+  if (!githubToken) {
+    throw new Error("GITHUB_TOKEN is required to create issue comments.");
+  }
+
+  const response = await githubRequest(`/repos/${issueRepo}/issues/${issueNumber}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`GitHub issue comment creation failed: ${response.status} ${text}`);
+  }
+
+  return JSON.parse(text);
+}
+
+function mailboxHashFromAddress(value) {
+  const email = extractEmailAddress(value);
+  const local = email.split("@")[0] || "";
+  const plusIndex = local.lastIndexOf("+");
+  return plusIndex === -1 ? "" : local.slice(plusIndex + 1);
+}
+
+function issueNumberFromPostmarkPayload(payload) {
+  const toFull = Array.isArray(payload.ToFull) ? payload.ToFull : [];
+  const candidates = [
+    payload.MailboxHash,
+    payload.OriginalRecipient && mailboxHashFromAddress(payload.OriginalRecipient),
+    payload.To && mailboxHashFromAddress(payload.To),
+    ...toFull.map((address) => address.MailboxHash),
+    ...toFull.map((address) => address.Email && mailboxHashFromAddress(address.Email)),
+  ];
+
+  const hash = candidates
+    .map(normalizeText)
+    .find((value) => /^\d+$/.test(value));
+
+  return hash ? Number(hash) : null;
+}
+
+function inboundEmailFromPostmarkPayload(payload) {
+  return extractEmailAddress(payload.FromFull?.Email || payload.From || "");
+}
+
+function inboundReplyTextFromPostmarkPayload(payload) {
+  return truncateText(
+    payload.StrippedTextReply ||
+      payload.TextBody ||
+      stripHtml(payload.HtmlBody),
+  );
+}
+
+function renderReporterReplyComment(contact, replyText) {
+  return [
+    reporterReplyMarker,
+    `Reply from ${contact.reporterName || "the reporter"} via email:`,
+    ``,
+    replyText,
+  ].join("\n");
+}
+
+async function handleGitHubWebhook(req, res) {
+  let rawBody;
+  try {
+    rawBody = await parseBody(req, 256_000);
+  } catch (error) {
+    sendJson(res, 400, { message: error instanceof Error ? error.message : "Invalid request body." });
+    return;
+  }
+
+  try {
+    if (!verifyGitHubSignature(req, rawBody)) {
+      sendJson(res, 401, { message: "Invalid GitHub webhook signature." });
+      return;
+    }
+
+    if (headerValue(req, "x-github-event") !== "issue_comment") {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "not an issue_comment event" });
+      return;
+    }
+
+    const payload = rawBody ? JSON.parse(rawBody) : {};
+    const issue = payload.issue || {};
+    const comment = payload.comment || {};
+    const body = normalizeText(comment.body);
+
+    if (payload.action !== "created") {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "not a created comment" });
+      return;
+    }
+
+    if (issue.pull_request) {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "pull request comment" });
+      return;
+    }
+
+    if (!issue.number || !body) {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "missing issue number or comment body" });
+      return;
+    }
+
+    if (body.includes(reporterReplyMarker) || body.includes(internalCommentMarker)) {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "email bridge marker" });
+      return;
+    }
+
+    const authorAssociation = normalizeText(comment.author_association).toUpperCase();
+    if (!emailAllowedAuthorAssociations.has(authorAssociation)) {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "comment author is not allowed" });
+      return;
+    }
+
+    const contact = await getReporterContact(issue.number);
+    if (!contact?.email) {
+      sendJson(res, 202, { ok: true, ignored: true, reason: "no reporter email on file" });
+      return;
+    }
+
+    await emailReporterForIssueComment(issue, comment, contact);
+    sendJson(res, 200, { ok: true, emailed: true, issueNumber: issue.number });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "GitHub webhook failed.";
+    const status =
+      message.includes("required for the GitHub webhook") ||
+      message.includes("Postmark outbound email is not configured") ||
+      message.includes("Postmark send failed")
+        ? 500
+        : 400;
+    sendJson(res, status, { message });
+  }
+}
+
+async function handlePostmarkInboundWebhook(req, res, url) {
+  try {
+    if (!verifyPostmarkWebhook(req, url)) {
+      sendJson(res, 403, { message: "Invalid Postmark webhook token." });
+      return;
+    }
+  } catch (error) {
+    sendJson(res, 500, { message: error instanceof Error ? error.message : "Postmark webhook is not configured." });
+    return;
+  }
+
+  let payload;
+  try {
+    payload = await parseJson(req, 1_000_000);
+  } catch (error) {
+    sendJson(res, 400, { message: error instanceof Error ? error.message : "Invalid Postmark JSON." });
+    return;
+  }
+
+  try {
+    const issueNumber = issueNumberFromPostmarkPayload(payload);
+    if (!issueNumber) {
+      sendJson(res, 200, { ok: true, ignored: true, reason: "missing issue mailbox hash" });
+      return;
+    }
+
+    const contact = await getReporterContact(issueNumber);
+    if (!contact?.email) {
+      sendJson(res, 200, { ok: true, ignored: true, reason: "no reporter email on file" });
+      return;
+    }
+
+    const fromEmail = inboundEmailFromPostmarkPayload(payload);
+    if (!fromEmail || !timingSafeStringEqual(fromEmail, contact.email)) {
+      sendJson(res, 403, { message: "Inbound email sender does not match the reporter email on file." });
+      return;
+    }
+
+    const replyText = inboundReplyTextFromPostmarkPayload(payload);
+    if (!replyText) {
+      sendJson(res, 200, { ok: true, ignored: true, reason: "empty reply body" });
+      return;
+    }
+
+    const comment = await createIssueComment(
+      issueNumber,
+      renderReporterReplyComment(contact, replyText),
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      created: true,
+      issueNumber,
+      commentUrl: comment.html_url,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Postmark webhook failed.";
+    sendJson(res, 500, { message });
+  }
+}
+
 async function handleIssueSubmit(req, res) {
   let payload;
   try {
@@ -350,7 +797,7 @@ async function handleIssueSubmit(req, res) {
     const requestType = requireField(payload.requestType, "requestType");
     const affectedRepo = requireField(payload.affectedRepo, "affectedRepo");
     const reporterName = requireField(payload.reporterName, "reporterName");
-    const contact = requireField(payload.contact, "contact");
+    const contact = normalizeEmail(requireField(payload.contact, "contact"));
     const summary = requireField(payload.summary, "summary");
     const details = requireField(payload.details, "details");
     const humanCheckId = requireField(payload.humanCheckId, "humanCheckId");
@@ -401,6 +848,21 @@ async function handleIssueSubmit(req, res) {
     }
 
     const issue = await createIssue(normalized);
+    await updateReporterContacts((contacts) => {
+      contacts[String(issue.number)] = {
+        issueNumber: issue.number,
+        issueUrl: issue.html_url,
+        repository: issueRepo,
+        reporterName,
+        email: contact,
+        requestType,
+        affectedRepo,
+        summary,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
     sendJson(res, 201, {
       ok: true,
       dryRun: false,
@@ -437,6 +899,11 @@ const server = http.createServer((req, res) => {
       mode: dryRun ? "dry-run" : "live",
       issueRepo,
       hasGitHubToken: Boolean(githubToken),
+      hasGitHubWebhookSecret: Boolean(githubWebhookSecret),
+      hasPostmarkServerToken: Boolean(postmarkServerToken),
+      hasPostmarkFromEmail: Boolean(postmarkFromEmail),
+      hasPostmarkReplyToEmail: Boolean(postmarkReplyToEmail),
+      hasPostmarkWebhookSecret: Boolean(postmarkWebhookSecret),
       apiUrl: "/api/issues",
     });
     return;
@@ -452,6 +919,16 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && url.pathname === "/api/issues") {
     handleIssueSubmit(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/webhooks/github") {
+    handleGitHubWebhook(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/webhooks/postmark") {
+    handlePostmarkInboundWebhook(req, res, url);
     return;
   }
 

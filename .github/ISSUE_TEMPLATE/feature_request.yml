@@ -31,10 +31,9 @@ body:
   - type: input
     id: contact
     attributes:
-      label: Best contact
-      placeholder: email or phone
-    validations:
-      required: true
+      label: Public contact note
+      description: Optional. Anything entered here will be visible on GitHub.
+      placeholder: Only include an email or phone if it can be public.
   - type: textarea
     id: summary
     attributes:
