@@ -429,7 +429,7 @@ async function ensureLabel(name, color, description) {
 
 async function createIssue(payload) {
   const titlePrefix = payload.requestType === "problem" ? "Problem" : "Feature request";
-  const title = `[${titlePrefix}] ${payload.summary}`;
+  const title = `[${titlePrefix}] ${payload.title}`;
   const body = renderIssueBody(payload);
   const labels = [
     payload.requestType,
@@ -798,7 +798,7 @@ async function handleIssueSubmit(req, res) {
     const affectedRepo = requireField(payload.affectedRepo, "affectedRepo");
     const reporterName = requireField(payload.reporterName, "reporterName");
     const contact = normalizeEmail(requireField(payload.contact, "contact"));
-    const summary = requireField(payload.summary, "summary");
+    const title = requireField(payload.title ?? payload.summary, "title");
     const details = requireField(payload.details, "details");
     const humanCheckId = requireField(payload.humanCheckId, "humanCheckId");
     const humanCheck = requireField(payload.humanCheck, "humanCheck");
@@ -818,7 +818,7 @@ async function handleIssueSubmit(req, res) {
       affectedRepo,
       reporterName,
       contact,
-      summary,
+      title,
       details,
       deviceType: normalizeText(payload.deviceType),
       browser: normalizeText(payload.browser),
@@ -857,7 +857,7 @@ async function handleIssueSubmit(req, res) {
         email: contact,
         requestType,
         affectedRepo,
-        summary,
+        title,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

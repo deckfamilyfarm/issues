@@ -54,7 +54,7 @@ function formDataToPayload(formData) {
     affectedRepo: String(formData.get("affectedRepo") || ""),
     reporterName: String(formData.get("reporterName") || ""),
     contact: String(formData.get("contact") || ""),
-    summary: String(formData.get("summary") || ""),
+    title: String(formData.get("title") || ""),
     details: String(formData.get("details") || ""),
     deviceType: String(formData.get("deviceType") || ""),
     browser: String(formData.get("browser") || ""),
