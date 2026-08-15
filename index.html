@@ -1,212 +1,210 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="intake-api-url"
-      content="/api/issues"
-    />
-    <title>Issue Intake</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <script type="module" src="./app.js"></script>
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">Deck Family Farm Public Issue Intake</p>
-        <h1>Tell us what broke or what should change.</h1>
-        <div class="cta-row">
-          <a
-            id="feature-requests-link"
-            class="button-link"
-            href="https://github.com/deckfamilyfarm/issues/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-request"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Review feature requests
-          </a>
-          <a
-            id="open-issues-link"
-            class="button-link"
-            href="https://github.com/deckfamilyfarm/issues/issues?q=is%3Aissue+is%3Aopen"
-            target="_blank"
-            rel="noreferrer"
-          >
-            View all open issues
-          </a>
-        </div>
-        <p id="api-hint" class="api-hint" aria-live="polite"></p>
-      </section>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-      <section class="panel">
-        <form id="intake-form" class="form">
-          <div class="grid two">
-            <label>
-              <span>What is this?</span>
-              <select name="requestType" id="requestType" required>
-                <option value="problem">Problem</option>
-                <option value="feature-request">Feature request</option>
-              </select>
-            </label>
+  <title>Submit an Issue</title>
 
-            <label>
-              <span>Choose repository:</span>
-              <select name="affectedRepo" id="affectedRepo" required>
-                <option value="" selected disabled>Choose repository:</option>
-              </select>
-            </label>
-          </div>
+  <style>
+    body {
+      margin: 0;
+      padding: 50px 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      color: #292929;
+      background: #fafafa;
+    }
 
-          <div class="grid two">
-            <label>
-              <span>Your name</span>
-              <input
-                name="reporterName"
-                type="text"
-                autocomplete="name"
-                placeholder="Jane Doe"
-                required
-              />
-            </label>
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+    }
 
-            <label>
-              <span>Your email</span>
-              <input
-                name="contact"
-                type="email"
-                autocomplete="email"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-          </div>
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
 
-          <label>
-            <span>Title</span>
-            <input
-              name="title"
-              type="text"
-              maxlength="120"
-              placeholder="A short title for the issue"
-              required
-            />
-          </label>
+    h2 {
+      margin-top: 38px;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
 
-          <label>
-            <span>Details</span>
-            <textarea
-              name="details"
-              rows="6"
-              placeholder="What happened, what you expected, and anything else that helps us understand it."
-              required
-            ></textarea>
-          </label>
+    .intro {
+      font-size: 1.1rem;
+      color: #555;
+    }
 
-          <section class="stack" data-section="problem">
-            <h2>If this is a problem</h2>
-            <div class="grid two">
-              <label>
-                <span>Device</span>
-                <select name="deviceType">
-                  <option value="">Choose one</option>
-                  <option value="computer">Computer</option>
-                  <option value="phone">Phone</option>
-                  <option value="tablet">Tablet</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
+    .email {
+      margin: 28px 0;
+      padding: 18px 20px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
 
-              <label>
-                <span>Browser</span>
-                <input
-                  name="browser"
-                  type="text"
-                  placeholder="Chrome, Safari, Firefox, etc."
-                />
-              </label>
-            </div>
+    .email a {
+      font-size: 1.1rem;
+      color: #245b8a;
+      text-decoration: none;
+    }
 
-            <div class="grid two">
-              <label>
-                <span>When it happened</span>
-                <input name="happenedAt" type="datetime-local" />
-              </label>
+    .email a:hover {
+      text-decoration: underline;
+    }
 
-              <label>
-                <span>Exact message or error text</span>
-                <input
-                  name="errorMessage"
-                  type="text"
-                  placeholder="Paste the exact text if you have it"
-                />
-              </label>
-            </div>
-          </section>
+    ol {
+      padding-left: 24px;
+    }
 
-          <section class="stack hidden" data-section="feature-request">
-            <h2>If this is a feature request</h2>
-            <label>
-              <span>What should the application do instead?</span>
-              <textarea
-                name="desiredOutcome"
-                rows="4"
-                placeholder="Describe the change you want."
-              ></textarea>
-            </label>
+    li {
+      margin-bottom: 16px;
+    }
 
-            <label>
-              <span>Why does it matter?</span>
-              <textarea
-                name="why"
-                rows="3"
-                placeholder="What is the benefit or problem this solves?"
-              ></textarea>
-            </label>
-          </section>
+    strong {
+      font-weight: 600;
+    }
 
-          <label>
-            <span>Attachments or links</span>
-            <textarea
-              name="attachments"
-              rows="3"
-              placeholder="Optional screenshots, links, or filenames."
-            ></textarea>
-          </label>
+    .example {
+      margin-top: 30px;
+      padding: 20px;
+      background: white;
+      border-left: 3px solid #bbb;
+    }
 
-          <div class="actions">
-            <label class="human-check">
-              <span>Human check:</span>
-              <div class="human-check-row">
-                <span id="human-check-question" class="human-check-question">Loading...</span>
-                <input name="humanCheckId" id="humanCheckId" type="hidden" />
-                <input
-                  name="humanCheck"
-                  id="humanCheck"
-                  type="text"
-                  autocomplete="off"
-                  placeholder="answer"
-                  required
-                />
-              </div>
-            </label>
-            <button type="submit">Send report</button>
-            <p id="status" class="status" role="status" aria-live="polite"></p>
-          </div>
-        </form>
-        <div id="submission-result" class="submission-result hidden" aria-live="polite">
-          <p id="submission-message" class="submission-message"></p>
-          <a
-            id="submission-link"
-            class="button-link"
-            href="#"
-            target="_blank"
-            rel="noreferrer"
-          >
-            View the request you just submitted
-          </a>
-        </div>
-      </section>
-    </main>
-  </body>
+    .example p {
+      margin: 7px 0;
+    }
+
+    footer {
+      margin-top: 55px;
+      padding-top: 18px;
+      border-top: 1px solid #ddd;
+      color: #777;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+
+<body>
+
+<main>
+
+  <h1>Submit an Issue</h1>
+
+  <p class="intro">
+    Please send issue reports and development requests directly by email.
+    Providing complete information helps us understand, reproduce, and
+    resolve the issue more quickly.
+  </p>
+
+  <div class="email">
+    Email:
+    <a href="mailto:jdeck88@gmail.com?subject=Issue Request">
+      jdeck88@gmail.com
+    </a>
+  </div>
+
+
+  <h2>What to include</h2>
+
+  <ol>
+
+    <li>
+      <strong>Repository or application</strong><br>
+      Tell us which repository, application, or website the issue relates to.
+      If you know the GitHub repository, include its name or URL.
+    </li>
+
+    <li>
+      <strong>Describe the problem</strong><br>
+      Explain what is happening and what you expected to happen instead.
+      Please be as specific as possible.
+    </li>
+
+    <li>
+      <strong>Steps to reproduce</strong><br>
+      Tell us exactly what you did before the problem occurred.
+      A numbered sequence of steps is especially helpful.
+    </li>
+
+    <li>
+      <strong>Expected behavior</strong><br>
+      Describe what you think should happen when those steps are followed.
+    </li>
+
+    <li>
+      <strong>What actually happened</strong><br>
+      Include any error messages or unexpected results.
+    </li>
+
+    <li>
+      <strong>Supporting information</strong><br>
+      Include screenshots, example records, URLs, files, or other information
+      that would help us understand or reproduce the problem.
+    </li>
+
+  </ol>
+
+
+  <h2>For feature or development requests</h2>
+
+  <p>
+    If you are requesting a change rather than reporting a problem, please
+    describe the problem you are trying to solve before describing the
+    proposed solution.
+  </p>
+
+  <p>
+    It is especially helpful to explain who needs the change, how the current
+    system works, and what you would consider a successful outcome.
+  </p>
+
+
+  <h2>Example</h2>
+
+  <div class="example">
+
+    <p><strong>Subject:</strong> Issue Request — Timesheets approval screen</p>
+
+    <p><strong>Repository/application:</strong> Timesheets</p>
+
+    <p>
+      <strong>Problem:</strong>
+      Approved timesheets are still appearing in the Needs Approval list.
+    </p>
+
+    <p><strong>Steps to reproduce:</strong></p>
+
+    <ol>
+      <li>Open the Timesheets approval page.</li>
+      <li>Select an employee.</li>
+      <li>Approve the timesheet.</li>
+      <li>Return to the Needs Approval list.</li>
+    </ol>
+
+    <p>
+      <strong>Expected:</strong>
+      The approved timesheet should disappear from the list.
+    </p>
+
+    <p>
+      <strong>Actual:</strong>
+      The timesheet remains visible until the page is manually refreshed.
+    </p>
+
+  </div>
+
+
+  <footer>
+    Issue requests are reviewed and transferred to the appropriate GitHub
+    repository for tracking and development.
+  </footer>
+
+</main>
+
+</body>
 </html>
