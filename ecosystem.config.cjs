@@ -9,7 +9,7 @@ module.exports = {
       log_date_format: "YYYY-MM-DD HH:mm Z",
       env: {
         NODE_ENV: "production",
-        HOST: "0.0.0.0",
+        HOST: "127.0.0.1",
         PORT: "3021",
       },
     },
